@@ -1,23 +1,37 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
+using UnityEngine.Rendering.PostProcessing;
 
 public class PieceGenerator : MonoBehaviour
 {
     public GameObject connectionPointPrefab;
-    public GameObject triangleMatrix; // Assign your TriangleMatrix in the inspector
-    public int pieceCount = 3; // The desired number of pieces
-    public int averagePieceSize = 12; // The average size of each piece
-    public int pieceSizeVariation = 6; // The variation in the size of each piece
+    private GameObject levelGameObject; // Assign your TriangleMatrix in the inspector
+    //public int pieceCount = 3; // The desired number of pieces
+    private int averagePieceSize; // The average size of each piece
+    private int pieceSizeVariation; // The variation in the size of each piece
     public Color[] pieceColors = { Color.red, Color.green, Color.blue, Color.yellow, Color.magenta, Color.cyan, Color.white };
+    private List<Triangle> triangles = new List<Triangle>();
     
-    public void GeneratePieces()
+    
+    public void GeneratePieces(int pieceCount)
     {
-        // Get all the triangles from the TriangleMatrix
-        List<Triangle> triangles = new List<Triangle>(triangleMatrix.GetComponentsInChildren<Triangle>());
-
-        // Find the neighbors of each triangle
+        levelGameObject = GameObject.FindGameObjectWithTag("Level");
+        if (levelGameObject == null)
+        {
+            Debug.Log("Level GameObject is not found.");
+        }
+        else
+        {
+            Debug.Log("Level GameObject is found.");
+            triangles = levelGameObject.GetComponentsInChildren<Triangle>().ToList();
+            Debug.Log("Number of triangles: " + triangles.Count);
+        }
+        averagePieceSize = triangles.Count / pieceCount;
+        pieceSizeVariation = (int)(averagePieceSize * 0.2);
         foreach (Triangle triangle in triangles)
         {
+            Debug.Log("sa");
             triangle.FindNeighbors();
         }
 
@@ -30,7 +44,8 @@ public class PieceGenerator : MonoBehaviour
             // Create a new GameObject for the piece
             GameObject pieceObject = new GameObject("Piece" + (i + 1));
             pieceObject.tag = "Piece";
-            pieceObject.transform.parent = this.transform;
+            pieceObject.layer = LayerMask.NameToLayer("Piece");
+            pieceObject.transform.parent = levelGameObject.transform;
 
             // Start with a random triangle
             Triangle currentTriangle = triangles[Random.Range(0, triangles.Count)];
@@ -49,11 +64,6 @@ public class PieceGenerator : MonoBehaviour
                 {
                     currentTriangle = currentTriangle.neighbors[Random.Range(0, currentTriangle.neighbors.Count)];
                 }
-                else if (triangles.Count > 0)
-                {
-                    // If the current triangle has no neighbors, choose a random triangle from the list
-                    currentTriangle = triangles[Random.Range(0, triangles.Count)];
-                }
             }
             
             Material pieceMaterial = new Material(Shader.Find("UI/Default"));
@@ -66,33 +76,41 @@ public class PieceGenerator : MonoBehaviour
             }
         }
         GameObject[] pieces = GameObject.FindGameObjectsWithTag("Piece");
-        // Assign remaining triangles to pieces
+
         while (triangles.Count > 0)
         {
-            // Get a list of all the pieces
-
-
-            // Choose a random piece
-            GameObject piece = pieces[Random.Range(0, pieces.Length)];
-
-            // Choose a random triangle from the list
+            
             Triangle triangle = triangles[Random.Range(0, triangles.Count)];
-
-            // Check if the triangle has a neighbor in the piece
-            foreach (Triangle neighbor in triangle.neighbors)
+            
+            var neighbor = triangle.neighbors[Random.Range(0, triangle.neighbors.Count)];
+            
+            if (neighbor.transform.parent.gameObject.tag == "Piece")
             {
-                if (neighbor.transform.parent == piece.transform)
-                {
-                    // Remove the triangle from the list
-                    triangles.Remove(triangle);
-
-                    // Set the parent of the triangle's GameObject to the piece's GameObject
-                    triangle.transform.parent = piece.transform;
-                    triangle.GetComponent<MeshRenderer>().material = neighbor.GetComponent<MeshRenderer>().material;
-                    break;
-                }
+                triangle.transform.parent = neighbor.transform.parent;
+                triangle.GetComponent<MeshRenderer>().material = neighbor.GetComponent<MeshRenderer>().material;
+                triangles.Remove(triangle);
             }
+            
+            // Iterate over all pieces
+            /*foreach (GameObject piece in pieces)
+            {
+                // Check if the triangle has a neighbor in the piece
+                foreach (Triangle neighbor in triangle.neighbors)
+                {
+                    if (neighbor.transform.parent == piece.transform)
+                    {
+                        // Remove the triangle from the list
+                        triangles.Remove(triangle);
+
+                        // Set the parent of the triangle's GameObject to the piece's GameObject
+                        triangle.transform.parent = piece.transform;
+                        
+                        break;
+                    }
+                }
+            }*/
         }
+
 
         foreach (var piece in pieces)
         {
@@ -135,6 +153,7 @@ public class PieceGenerator : MonoBehaviour
             pieces[i].AddComponent<MeshRenderer>().material = pieceMaterial;
             pieces[i].gameObject.SetActive(true);
             pieces[i].AddComponent<Draggable>();
+            
             PolygonCollider2D polygonCollider = pieces[i].AddComponent<PolygonCollider2D>();
             // Get all the vertices of the triangles in the piece
             var meshPoints = pieces[i].GetComponent<MeshFilter>().mesh.vertices;
@@ -154,19 +173,19 @@ public class PieceGenerator : MonoBehaviour
                 vertices.Clear();
                 counter++;
             }
-
-            
-            // Set the points of the polygon to the vertices of the triangles
-            //polygonCollider.points = vertices.ToArray();
-            var porintCount = polygonCollider.GetTotalPointCount();
-            
-            pieces[i].AddComponent<Rigidbody2D>();
-            pieces[i].GetComponent<Rigidbody2D>().isKinematic = true;
-
+            polygonCollider.isTrigger = true;
+            var rb = pieces[i].AddComponent<Rigidbody2D>();
+            rb.isKinematic = true;
         }
+        
+        
+        
+        DestroyTriangles();
     }
     void AddConnectionPoints(GameObject piece)
     {
+        
+        List<Vector3> deletedConnectionPoints = new List<Vector3>();
         // Get all the triangles in the piece
         Triangle[] triangles = piece.GetComponentsInChildren<Triangle>();
 
@@ -200,15 +219,36 @@ public class PieceGenerator : MonoBehaviour
             }
             if (count >= 4)
             {
+                var item = connectionPoints[i];
                 connectionPoints.RemoveAt(i);
+                deletedConnectionPoints.Add(item);
             }
         }
+        
         
         // Instantiate a connection point at each connection point
         foreach (Vector3 point in connectionPoints)
         {
-            Instantiate(connectionPointPrefab, point, Quaternion.identity, piece.transform);
+            var item = Instantiate(connectionPointPrefab, point, Quaternion.identity, piece.transform);
+            item.transform.localScale = Vector3.zero;
+            item.GetComponent<SpriteRenderer>().color = Color.gray;
         }
+
+        foreach (var point in deletedConnectionPoints)
+        {
+            if (!piece.GetComponentInChildren<ConnectionPoint>())
+            {
+                var item = Instantiate(connectionPointPrefab, point, Quaternion.identity, piece.transform);
+                item.transform.localScale = Vector3.zero;
+                if (item.GetComponent<Material>())
+                {
+                    item.GetComponent<Material>().color = Color.gray;
+                }
+                
+            }
+        }
+        
+        deletedConnectionPoints.Clear();
         
     }
     Vector3 CalculateCenter(GameObject piece)
@@ -226,5 +266,17 @@ public class PieceGenerator : MonoBehaviour
         }
 
         return sum / count;
+    }
+
+    void DestroyTriangles()
+    {
+        GameObject[] pieces = GameObject.FindGameObjectsWithTag("Piece");
+        foreach (var piece in pieces)
+        {
+            foreach (var triangle in piece.GetComponentsInChildren<Triangle>())
+            {
+                Destroy(triangle.gameObject);
+            }
+        }
     }
 }

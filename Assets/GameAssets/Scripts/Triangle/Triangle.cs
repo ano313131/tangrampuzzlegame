@@ -16,6 +16,7 @@ public class Triangle: MonoBehaviour
     }
     
     
+    
     public void FindNeighbors()
     {
         // Get all the other triangles from the TriangleMatrix
@@ -65,7 +66,6 @@ public class Triangle: MonoBehaviour
         mesh.vertices = adjustedVertices;
         mesh.triangles = new int[] { 0, 1, 2 };
         meshFilter.mesh = mesh;
-        
 
         // Adjust the position of the triangle's GameObject so that the visual center of the triangle aligns with its transform position
         transform.position = center;
