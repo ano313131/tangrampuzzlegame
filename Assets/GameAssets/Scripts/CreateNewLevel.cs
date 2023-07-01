@@ -34,7 +34,6 @@ public class CreateNewLevel : MonoBehaviour
         pieceGenerator.GeneratePieces(pieceCount);
         canvas.gameObject.SetActive(false);
         
-        LevelDataHandler.Instance.SaveLevelData(gridSize, pieceCount);
     }
 
     public void CreateMediumLevel()
@@ -48,7 +47,6 @@ public class CreateNewLevel : MonoBehaviour
         pieceGenerator.GeneratePieces(pieceCount);
         canvas.gameObject.SetActive(false);
         
-        LevelDataHandler.Instance.SaveLevelData(gridSize, pieceCount);
     }
 
     public void CreateHardLevel()
@@ -62,7 +60,6 @@ public class CreateNewLevel : MonoBehaviour
         pieceGenerator.GeneratePieces(Random.Range(9, 12));
         canvas.gameObject.SetActive(false);
         
-        LevelDataHandler.Instance.SaveLevelData(gridSize, pieceCount);
     }
 
     void DeleteLastLevel()
