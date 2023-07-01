@@ -315,7 +315,7 @@ public class PieceGenerator : MonoBehaviour
             return true;
         }
         
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(position, 10f);
+        Collider2D[] colliders = Physics2D.OverlapCircleAll(position, 25f);
         foreach (Collider2D collider in colliders)
         {
             if (collider.gameObject != piece)
