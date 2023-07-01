@@ -9,6 +9,8 @@ public class CreateNewLevel : MonoBehaviour
     private LevelGenerator levelGenerator;
     private PieceGenerator pieceGenerator;
     [SerializeField] private Canvas canvas;
+    private int gridSize;
+    private int pieceCount;
 
     private void Awake()
     {
@@ -24,25 +26,43 @@ public class CreateNewLevel : MonoBehaviour
     public void CreateEasyLevel()
     {
         DeleteLastLevel();
-        levelGenerator.GenerateLevel(4);
-        pieceGenerator.GeneratePieces(Random.Range(5, 7));
+        
+        gridSize = 4;
+        pieceCount = Random.Range(5, 7);
+        
+        levelGenerator.GenerateLevel(gridSize);
+        pieceGenerator.GeneratePieces(pieceCount);
         canvas.gameObject.SetActive(false);
+        
+        LevelDataHandler.Instance.SaveLevelData(gridSize, pieceCount);
     }
 
     public void CreateMediumLevel()
     {
         DeleteLastLevel();
-        levelGenerator.GenerateLevel(5);
-        pieceGenerator.GeneratePieces(Random.Range(7, 9));
+        
+        gridSize = 5;
+        pieceCount = Random.Range(7, 9);
+        
+        levelGenerator.GenerateLevel(gridSize);
+        pieceGenerator.GeneratePieces(pieceCount);
         canvas.gameObject.SetActive(false);
+        
+        LevelDataHandler.Instance.SaveLevelData(gridSize, pieceCount);
     }
 
     public void CreateHardLevel()
     {
         DeleteLastLevel();
-        levelGenerator.GenerateLevel(6);
+        
+        gridSize = 6;
+        pieceCount = Random.Range(9, 12);
+        
+        levelGenerator.GenerateLevel(gridSize);
         pieceGenerator.GeneratePieces(Random.Range(9, 12));
         canvas.gameObject.SetActive(false);
+        
+        LevelDataHandler.Instance.SaveLevelData(gridSize, pieceCount);
     }
 
     void DeleteLastLevel()

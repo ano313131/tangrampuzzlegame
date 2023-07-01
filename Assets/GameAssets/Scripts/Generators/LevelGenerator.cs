@@ -6,20 +6,12 @@ using UnityEngine.Rendering;
 
 public class LevelGenerator : MonoBehaviour
 {
-    public PieceGenerator PieceGenerator;
     public GameObject circlePrefab;
     public GameObject gridCell;
     public GameObject wallPrefab;
-    List<Triangle> triangles = new List<Triangle>();
     private int triangleMatrixSize;
     private GameObject level;
-    
-    
-    private void Awake()
-    {
-        PieceGenerator = GetComponent<PieceGenerator>();
-    }
-    
+
     public void GenerateLevel(float gridSize)
     {
         MakeLevelGameObject();

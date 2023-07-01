@@ -1,114 +1,132 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using System.Linq;
 using DG.Tweening;
-using Shapes2D;
-using Unity.Mathematics;
 
-public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler 
 {
     private Vector3 screenPoint;
     private Vector3 offset;
-    private GameObject ghostObjPrefab;
     private GameObject ghostObj;
     private Vector3 connectionPos;
     private ConnectionPoint[] connectionPoints;
     public static Draggable selectedObject;
     private CompletionChecker completionChecker;
     private Piece piece;
+    private PieceGenerator pieceGenerator;
+
     private void Start()
+    {
+        InitializeDraggable();
+    }
+
+    private void InitializeDraggable()
     {
         piece = GetComponent<Piece>();
         completionChecker = FindObjectOfType<CompletionChecker>();
         connectionPoints = FindObjectsOfType<ConnectionPoint>();
+        pieceGenerator = FindObjectOfType<PieceGenerator>();
         connectionPoints = connectionPoints.Where(cp => !cp.transform.parent.CompareTag("Piece")).ToArray();
     }
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        if (selectedObject != null && selectedObject != this)
-        {
-            return;
-        }
+        if (!IsCurrentObjectSelected()) return;
         
+        HandleDragStart();
+    }
+    
+    public void OnDrag(PointerEventData eventData)
+    {
+        if (!IsCurrentObjectSelected()) return;
+
+        HandleOnDrag();
+    }
+    
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        if (!IsCurrentObjectSelected()) return;
+        
+        HandleEndDrag();
+    }
+
+
+
+    private void HandleDragStart()
+    {
         selectedObject = this;
-        CreateGhostObjPrefab();
+        ghostObj = pieceGenerator.CreateGhostObjPrefab(gameObject);
+        SetGameObjectLayerToDefault();
+        CalculateScreenPointAndOffset();
+        MoveSelectedPieceToTop();
+        ScaleConnectionPoints();
+    }
+    
+    private void HandleOnDrag()
+    {
+        SetGameObjectLayerToDefault();
+        selectedObject = this;
+        UpdatePosition();
+        Vector3 totalOffset = CalculateTotalOffset();
+        UpdateConnectionPos(totalOffset);
+    }
+    
+    
+    private void HandleEndDrag()
+    {
+        selectedObject = this;
+        var isCollidingWall = IsGhostObjCollidingWithLayer("Wall");
+        var isCollidingPiece = IsGhostObjCollidingWithLayer("Piece");
+        var tempPos = transform.position;
+
+        UpdateEndPosition(isCollidingWall, isCollidingPiece, tempPos);
+
+        RescaleConnectionPoints();
+
+        Destroy(ghostObj);
+        SetGameObjectLayerToPiece();
+        selectedObject = null;
+        completionChecker.CheckForLevelCompletion();
+    }
+    
+
+    private void SetGameObjectLayerToDefault()
+    {
         transform.gameObject.layer = LayerMask.NameToLayer("Default");
+    }
+
+    private void CalculateScreenPointAndOffset()
+    {
         screenPoint = Camera.main.WorldToScreenPoint(gameObject.transform.position);
         offset = gameObject.transform.position - Camera.main.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, screenPoint.z));
-        MoveSelectedPieceToTop();
+    }
+
+    private void MoveSelectedPieceToTop()
+    {
+        transform.SetAsLastSibling();
+    }
+
+    private void ScaleConnectionPoints()
+    {
         foreach (ConnectionPoint connectionPoint in GetComponentsInChildren<ConnectionPoint>())
         {
             connectionPoint.transform.localScale = Vector3.zero;
             connectionPoint.transform.DOScale(.3f, 0.3f).SetEase(Ease.OutBack);
         }
-        
     }
+    
 
-    private void CreateGhostObjPrefab()
+    private void UpdatePosition()
     {
-        ghostObj = new GameObject();
-        ghostObj.transform.parent = gameObject.transform;
-        PolygonCollider2D polygonCollider = ghostObj.AddComponent<PolygonCollider2D>();
-        // Get all the vertices of the triangles in the piece
-        var meshPoints = ghostObj.GetComponentInParent<MeshFilter>().mesh.vertices;
-        //PolygonCollider2D polygonCollider = pieces[i].AddComponent<PolygonCollider2D>();
-        int counter = 0;
-        polygonCollider.pathCount = meshPoints.Length / 3;
-        for (var index = 0; index < meshPoints.Length; index+=3)
-        {
-            List<Vector2> vertices = new List<Vector2>();
-            // Define the shrink factor
-            float shrinkFactor = 0.1f;
-
-            // Get the points of the triangle
-            Vector3 point1 = meshPoints[index];
-            Vector3 point2 = meshPoints[index+1];
-            Vector3 point3 = meshPoints[index+2];
-
-            // Calculate the centroid of the triangle
-            Vector3 centroid = (point1 + point2 + point3) / 3;
-
-            // Move each point towards the centroid
-            Vector3 shrunkPoint1 = point1 + (centroid - point1) * shrinkFactor;
-            Vector3 shrunkPoint2 = point2 + (centroid - point2) * shrinkFactor;
-            Vector3 shrunkPoint3 = point3 + (centroid - point3) * shrinkFactor;
-
-            // Add the shrunk points to the vertices list
-            vertices.Add(new Vector2(shrunkPoint1.x, shrunkPoint1.y));
-            vertices.Add(new Vector2(shrunkPoint2.x, shrunkPoint2.y));
-            vertices.Add(new Vector2(shrunkPoint3.x, shrunkPoint3.y));
-
-            // Set the path of the polygon collider
-            polygonCollider.SetPath(counter, vertices);
-            vertices.Clear();
-            counter++;
-        }
-    }
-
-    void MoveSelectedPieceToTop()
-    {
-        transform.SetAsLastSibling();
-    }
-
-    public void OnDrag(PointerEventData eventData)
-    {
-        if (selectedObject != null && selectedObject != this)
-        {
-            return;
-        }
-
-        gameObject.layer = LayerMask.NameToLayer("Default");
-        selectedObject = this;
         Vector3 curScreenPoint = new Vector3(Input.mousePosition.x, Input.mousePosition.y, screenPoint.z);
         Vector3 curPosition = Camera.main.ScreenToWorldPoint(curScreenPoint) + offset;
         
         float speed = 50f;
         transform.position = Vector3.LerpUnclamped(transform.position, curPosition, Time.deltaTime * speed);
-        
+    }
+
+    private Vector3 CalculateTotalOffset()
+    {
         ConnectionPoint[] pieceConnectionPoints = GetComponentsInChildren<ConnectionPoint>();
         ConnectionPoint[] allConnectionPoints = FindObjectsOfType<ConnectionPoint>();
         allConnectionPoints = allConnectionPoints.Where(cp => !cp.transform.parent.CompareTag("Piece")).ToArray();
@@ -116,30 +134,50 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         Vector3 totalOffset = Vector3.zero;
         foreach (ConnectionPoint pieceConnectionPoint in pieceConnectionPoints)
         {
-            ConnectionPoint nearestConnectionPoint = null;
-            float minDistance = Mathf.Infinity;
-            foreach (ConnectionPoint connectionPoint in allConnectionPoints)
-            {
-                float distance = Vector3.Distance(pieceConnectionPoint.transform.position, connectionPoint.transform.position);
-                if (distance < minDistance)
-                {
-                    nearestConnectionPoint = connectionPoint;
-                    minDistance = distance;
-                }
-            }
+            totalOffset += CalculateOffsetFromNearestConnectionPoint(pieceConnectionPoint, allConnectionPoints);
+        }
+        return totalOffset;
+    }
 
-            // Calculate the offset needed to move the piece connection point to the nearest connection point
-            if (nearestConnectionPoint != null)
+    private Vector3 CalculateOffsetFromNearestConnectionPoint(ConnectionPoint pieceConnectionPoint, ConnectionPoint[] allConnectionPoints)
+    {
+        ConnectionPoint nearestConnectionPoint = GetNearestConnectionPoint(pieceConnectionPoint, allConnectionPoints);
+
+        // Calculate the offset needed to move the piece connection point to the nearest connection point
+        if (nearestConnectionPoint != null)
+        {
+            return nearestConnectionPoint.transform.position - pieceConnectionPoint.transform.position;
+        }
+        else
+        {
+            return Vector3.zero;
+        }
+    }
+
+    private ConnectionPoint GetNearestConnectionPoint(ConnectionPoint pieceConnectionPoint, ConnectionPoint[] allConnectionPoints)
+    {
+        ConnectionPoint nearestConnectionPoint = null;
+        float minDistance = Mathf.Infinity;
+        foreach (ConnectionPoint connectionPoint in allConnectionPoints)
+        {
+            float distance = Vector3.Distance(pieceConnectionPoint.transform.position, connectionPoint.transform.position);
+            if (distance < minDistance)
             {
-                totalOffset += nearestConnectionPoint.transform.position - pieceConnectionPoint.transform.position;
+                nearestConnectionPoint = connectionPoint;
+                minDistance = distance;
             }
         }
+        return nearestConnectionPoint;
+    }
 
+    private void UpdateConnectionPos(Vector3 totalOffset)
+    {
+        ConnectionPoint[] pieceConnectionPoints = GetComponentsInChildren<ConnectionPoint>();
         var tempPos = transform.position;
         
         if (totalOffset.magnitude < 5f)
         {
-            ghostObj.SetActive(true);
+            ActivateGhostObject();
             var pos = transform.position + totalOffset / pieceConnectionPoints.Length;
             ghostObj.transform.position = pos;
             connectionPos = pos;
@@ -148,29 +186,30 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         else
         {
             connectionPos = tempPos;
-            ghostObj.SetActive(false);
+            DeactivateGhostObject();
             SetPieceDisconnected();
         }
-        
-        
     }
 
-    public void OnEndDrag(PointerEventData eventData)
+    private void ActivateGhostObject()
     {
-        if (selectedObject != null && selectedObject != this)
-        {
-            return;
-        }
-        selectedObject = this;
+        ghostObj.SetActive(true);
+    }
+
+    private void DeactivateGhostObject()
+    {
+        ghostObj.SetActive(false);
+    }
+    
+
+    private bool IsGhostObjCollidingWithLayer(string layer)
+    {
         var ghostObjCollider = ghostObj.GetComponent<PolygonCollider2D>();
-        bool isCollidingWall = ghostObjCollider.IsTouchingLayers(LayerMask.GetMask("Wall"));
-        bool isCollidingPiece = ghostObjCollider.IsTouchingLayers(LayerMask.GetMask("Piece"));
-        Debug.Log("iscollidingwall" + isCollidingWall);
-        Debug.Log("iscollidingpiece" + isCollidingPiece);
-        var tempPos = transform.position;
+        return ghostObjCollider.IsTouchingLayers(LayerMask.GetMask(layer));
+    }
 
-
-
+    private void UpdateEndPosition(bool isCollidingWall, bool isCollidingPiece, Vector3 tempPos)
+    {
         if (isCollidingWall || isCollidingPiece)
         {
             transform.position = tempPos;
@@ -181,25 +220,34 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         {
             transform.position = connectionPos;
         }
-        
+    }
+
+    private void RescaleConnectionPoints()
+    {
         foreach (ConnectionPoint connectionPoint in GetComponentsInChildren<ConnectionPoint>())
         {
             connectionPoint.transform.DOScale(0, 0.3f).SetEase(Ease.InBack);
         }
-        
-        Destroy(ghostObj);
-        transform.gameObject.layer = LayerMask.NameToLayer("Piece");
-        selectedObject = null;
-        completionChecker.CheckForLevelCompletion();
     }
 
-    void SetPieceConnected()
+    private void SetGameObjectLayerToPiece()
+    {
+        transform.gameObject.layer = LayerMask.NameToLayer("Piece");
+    }
+
+    private void SetPieceConnected()
     {
         piece.isConnected = true;
     }
 
-    void SetPieceDisconnected()
+    private void SetPieceDisconnected()
     {
         piece.isConnected = false;
     }
+    
+    private bool IsCurrentObjectSelected()
+    {
+        return selectedObject == null || selectedObject == this;
+    }
+    
 }

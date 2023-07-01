@@ -6,10 +6,9 @@ using UnityEngine.Rendering.PostProcessing;
 public class PieceGenerator : MonoBehaviour
 {
     public GameObject connectionPointPrefab;
-    private GameObject levelGameObject; // Assign your TriangleMatrix in the inspector
-    //public int pieceCount = 3; // The desired number of pieces
-    private int averagePieceSize; // The average size of each piece
-    private int pieceSizeVariation; // The variation in the size of each piece
+    private GameObject levelGameObject;
+    private int averagePieceSize;
+    private int pieceSizeVariation;
     public Color[] pieceColors;
 
     private List<Triangle> triangles = new List<Triangle>();
@@ -23,7 +22,8 @@ public class PieceGenerator : MonoBehaviour
         AdjustPiecePositions();
         CombineMeshesAndAddComponents();
         DestroyTriangles();
-        PositionPiecesOutsideGrid(pieceCount);
+        DestroyEmptyPieces();
+        PositionPiecesOutsideGrid();
     }
 
     private void InitializePieceGenerator(int pieceCount)
@@ -35,15 +35,12 @@ public class PieceGenerator : MonoBehaviour
         }
         else
         {
-            Debug.Log("Level GameObject is found.");
             triangles = levelGameObject.GetComponentsInChildren<Triangle>().ToList();
-            Debug.Log("Number of triangles: " + triangles.Count);
         }
         averagePieceSize = triangles.Count / pieceCount;
         pieceSizeVariation = (int)(averagePieceSize * 0.2);
         foreach (Triangle triangle in triangles)
         {
-            Debug.Log("sa");
             triangle.FindNeighbors();
         }
     }
@@ -101,7 +98,7 @@ public class PieceGenerator : MonoBehaviour
         {
             Triangle triangle = triangles[Random.Range(0, triangles.Count)];
             var neighbor = triangle.neighbors[Random.Range(0, triangle.neighbors.Count)];
-            if (neighbor.transform.parent.gameObject.tag == "Piece")
+            if (neighbor.transform.parent.gameObject.CompareTag("Piece"))
             {
                 triangle.transform.parent = neighbor.transform.parent;
                 triangle.GetComponent<MeshRenderer>().material = neighbor.GetComponent<MeshRenderer>().material;
@@ -287,7 +284,7 @@ public class PieceGenerator : MonoBehaviour
         return sum / count;
     }
     
-    private void PositionPiecesOutsideGrid(int pieceCount)
+    private void PositionPiecesOutsideGrid()
     {
         GameObject[] pieces = GameObject.FindGameObjectsWithTag("Piece");
         float screenWidth = Camera.main.orthographicSize * 2.0f * Screen.width / Screen.height;
@@ -313,14 +310,12 @@ public class PieceGenerator : MonoBehaviour
 
     private bool IsPositionOccupied(Vector3 position, GameObject piece)
     {
-        // Check if the position is within the grid
         float gridWidth = CalculateGridWidth();
         if (Mathf.Abs(position.x) < gridWidth / 2 && Mathf.Abs(position.y) < gridWidth / 2)
         {
             return true;
         }
-
-        // Check if the position is occupied by another piece
+        
         Collider2D[] colliders = Physics2D.OverlapCircleAll(position, 5f);
         foreach (Collider2D collider in colliders)
         {
@@ -335,7 +330,6 @@ public class PieceGenerator : MonoBehaviour
 
     private float CalculateGridWidth()
     {
-        // Assuming the grid is a square and its size is defined by the scale of the levelGameObject
         return levelGameObject.transform.localScale.x;
     }
 
@@ -351,4 +345,53 @@ public class PieceGenerator : MonoBehaviour
             }
         }
     }
+
+    void DestroyEmptyPieces()
+    {
+        GameObject[] pieces = GameObject.FindGameObjectsWithTag("Piece");
+        foreach (var piece in pieces)
+        {
+            if (piece.transform.childCount == 0)
+            {
+                Destroy(piece.gameObject);
+            }
+        }
+    }
+    
+    public GameObject CreateGhostObjPrefab(GameObject piece)
+    {
+        GameObject ghostObj;
+        ghostObj = new GameObject();
+        ghostObj.transform.parent = piece.transform;
+        PolygonCollider2D polygonCollider = ghostObj.AddComponent<PolygonCollider2D>();
+        var meshPoints = ghostObj.GetComponentInParent<MeshFilter>().mesh.vertices;
+        int counter = 0;
+        polygonCollider.pathCount = meshPoints.Length / 3;
+        for (var index = 0; index < meshPoints.Length; index+=3)
+        {
+            List<Vector2> vertices = new List<Vector2>();
+            float shrinkFactor = 0.1f;
+            
+            Vector3 point1 = meshPoints[index];
+            Vector3 point2 = meshPoints[index+1];
+            Vector3 point3 = meshPoints[index+2];
+            
+            Vector3 centroid = (point1 + point2 + point3) / 3;
+            
+            Vector3 shrunkPoint1 = point1 + (centroid - point1) * shrinkFactor;
+            Vector3 shrunkPoint2 = point2 + (centroid - point2) * shrinkFactor;
+            Vector3 shrunkPoint3 = point3 + (centroid - point3) * shrinkFactor;
+            
+            vertices.Add(new Vector2(shrunkPoint1.x, shrunkPoint1.y));
+            vertices.Add(new Vector2(shrunkPoint2.x, shrunkPoint2.y));
+            vertices.Add(new Vector2(shrunkPoint3.x, shrunkPoint3.y));
+            
+            polygonCollider.SetPath(counter, vertices);
+            vertices.Clear();
+            counter++;
+        }
+
+        return ghostObj;
+    }
+    
 }
