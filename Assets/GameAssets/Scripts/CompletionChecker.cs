@@ -5,7 +5,7 @@ using UnityEngine;
 
 public class CompletionChecker : MonoBehaviour
 {
-    private ConnectionPoint[] gridConnectionPoints;
+    private Piece[] pieces;
     private LevelGenerator levelGenerator;
     [SerializeField] private Canvas canvas;
 
@@ -17,14 +17,13 @@ public class CompletionChecker : MonoBehaviour
     public void CheckForLevelCompletion()
     {
         bool isAllConnected = true;
-        gridConnectionPoints = GameObject.Find("ConnectionPoints").GetComponentsInChildren<ConnectionPoint>();
+        pieces = FindObjectsOfType<Piece>();
 
-        foreach (var point in gridConnectionPoints)
+        foreach (var piece in pieces)
         {
-            if (!point.gameObject.GetComponent<CircleCollider2D>().IsTouchingLayers(LayerMask.GetMask("Piece")))
+            if (!piece.isConnected)
             {
                 isAllConnected = false;
-                Debug.Log("zort");
             }
                 
         }

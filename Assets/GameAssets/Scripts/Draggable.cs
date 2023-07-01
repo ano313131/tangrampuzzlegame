@@ -18,8 +18,10 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
     private ConnectionPoint[] connectionPoints;
     public static Draggable selectedObject;
     private CompletionChecker completionChecker;
+    private Piece piece;
     private void Start()
     {
+        piece = GetComponent<Piece>();
         completionChecker = FindObjectOfType<CompletionChecker>();
         connectionPoints = FindObjectsOfType<ConnectionPoint>();
         connectionPoints = connectionPoints.Where(cp => !cp.transform.parent.CompareTag("Piece")).ToArray();
@@ -141,11 +143,13 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
             var pos = transform.position + totalOffset / pieceConnectionPoints.Length;
             ghostObj.transform.position = pos;
             connectionPos = pos;
+            SetPieceConnected();
         }
         else
         {
             connectionPos = tempPos;
             ghostObj.SetActive(false);
+            SetPieceDisconnected();
         }
         
         
@@ -170,7 +174,7 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         if (isCollidingWall || isCollidingPiece)
         {
             transform.position = tempPos;
-            
+            SetPieceDisconnected();
         }
             
         else
@@ -189,6 +193,13 @@ public class Draggable : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDra
         completionChecker.CheckForLevelCompletion();
     }
 
+    void SetPieceConnected()
+    {
+        piece.isConnected = true;
+    }
 
-    
+    void SetPieceDisconnected()
+    {
+        piece.isConnected = false;
+    }
 }
