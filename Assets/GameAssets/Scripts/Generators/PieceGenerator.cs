@@ -289,7 +289,6 @@ public class PieceGenerator : MonoBehaviour
         GameObject[] pieces = GameObject.FindGameObjectsWithTag("Piece");
         float screenWidth = Camera.main.orthographicSize * 2.0f * Screen.width / Screen.height;
         float screenHeight = Camera.main.orthographicSize * 2.0f;
-        float offset = 5f; // Distance from the grid
 
         foreach (GameObject piece in pieces)
         {
@@ -316,7 +315,7 @@ public class PieceGenerator : MonoBehaviour
             return true;
         }
         
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(position, 5f);
+        Collider2D[] colliders = Physics2D.OverlapCircleAll(position, 10f);
         foreach (Collider2D collider in colliders)
         {
             if (collider.gameObject != piece)
